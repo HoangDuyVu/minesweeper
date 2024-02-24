@@ -1,0 +1,448 @@
+#include "raylib.h"
+#include "raymath.h"
+#include <bits/stdc++.h>
+#define rBLACK {255, 240, 187, 255}
+#define rB {159,131,140,255}
+
+struct node
+{
+    int x , y;
+    int color , number;
+    node(){}
+    node(int x , int y , int color, int number): x(x), y(y), color(color) , number(number){}
+};
+
+int health = 4;
+std::vector<node> a;
+std::vector<std::vector<int> > epy,localbomb,tick , guess , nobomb;
+int dx[] = {-1,-1,-1,0,0,1,1,1};
+int dy[] = {-1,0,1,-1,1,-1,0,1};
+int count = 0 , win = 0 , end = 0 , endgame = 0, g = 0;
+int numberbomb , remainbomb;
+double timebegin = 0;
+Texture2D texture,texture2,texture3;
+const int limmittime = 600 + 600;
+int row = 10 , col = 10;
+
+void Endgame();
+
+bool ok(int x, int y){
+    return x > 0 && x <= col && y > 0 && y <= row && !epy[x][y];
+}
+
+void bfs(int x, int y){
+    for (node &v : a) if (v.x == x && v.y == y) v.color^=1; 
+    epy[x][y] = 1;
+    count++;
+
+    int d = 0;
+    for (int i = 0 ; i < 8 ; i++){
+        int X = x + dx[i];
+        int Y = y + dy[i];
+        d += localbomb[X][Y];
+    }
+
+    for (node &v : a) if (v.x == x && v.y == y) v.number = d;
+    if (d == 0){
+        for (int i = 0 ; i < 8 ; i++){
+            int X = x + dx[i];
+            int Y = y + dy[i];
+            if (ok(X,Y)) bfs(X,Y);
+        }
+    }
+}
+
+void setup(){
+    count = 0;
+    win = 0;
+    end = 0;
+    endgame = 0;
+    health = 4;
+    epy.assign(900,std::vector<int>(900,0));
+    localbomb.assign(900,std::vector<int>(900,0));
+    tick.assign(900,std::vector<int>(900,0));
+    guess.assign(900,std::vector<int>(900,0));
+    nobomb.assign(900,std::vector<int>(900,0));
+    a.clear();
+    for (int i = 50 ; i <= col*50 ; i+= 50)
+        for (int j = 50 ; j <= row*50 ; j += 50){
+            a.push_back(node(i/50,j/50,0,0));
+        }
+
+    numberbomb = rand() % 10 + (row * col / 6);
+    remainbomb = numberbomb;
+    for (int i = 1 ; i <= numberbomb ; i++){
+        while (true){
+            int x = rand() % col + 1;
+            int y = rand() % row + 1;
+            if (!localbomb[x][y]){
+                localbomb[x][y] = 1;
+                break;
+            }
+        }
+    }
+}
+void paint(){
+        ClearBackground(RAYWHITE);
+        DrawRectangle(50,50,col*50,row*50,{255, 240, 187, 255});
+
+        for (node v : a){
+            if (v.color == 0){
+                DrawRectangle(v.x*50,v.y*50,50,50,WHITE);
+                DrawRectangle(v.x*50 + 1,v.y*50 + 1,48,48,BEIGE);
+            }
+            else{
+
+                if (v.number)
+                DrawText(TextFormat("%2i ",v.number),v.x*50 + 8,v.y*50 + 8,30,BEIGE);
+                DrawRectangle(v.x*50,v.y*50,1,50,WHITE);
+                DrawRectangle(v.x*50,v.y*50,50,1,WHITE);
+                DrawRectangle(v.x*50 + 49,v.y*50,1,50,WHITE);
+                DrawRectangle(v.x*50,v.y*50 + 49,50,1,WHITE);
+            }
+        }
+
+        for (int i = 1 ; i <= col ; i++)
+            for (int j = 1 ; j <= row ; j++)
+            if (tick[i][j] && !epy[i][j] && !guess[i][j] && !nobomb[i][j]){
+                DrawTexture(texture, i*50,j*50,RAYWHITE);
+                DrawRectangle(i*50,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50,50,1,WHITE);
+                DrawRectangle(i*50 + 49,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50 + 49,50,1,WHITE);
+            } else 
+            if (guess[i][j]){
+                DrawRectangle(i*50 + 1,j*50 + 1,48,48,rB);
+                DrawTexture(texture2, i*50,j*50,RAYWHITE);
+                DrawRectangle(i*50,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50,50,1,WHITE);
+                DrawRectangle(i*50 + 49,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50 + 49,50,1,WHITE);   
+            }
+            else if (nobomb[i][j] && !epy[i][j]){
+                DrawRectangle(i*50 + 1,j*50 + 1,48,48,RED);
+              //  DrawTexture(texture2, i*50,j*50,RED);
+                DrawRectangle(i*50,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50,50,1,WHITE);
+                DrawRectangle(i*50 + 49,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50 + 49,50,1,WHITE); 
+            }
+
+        for (int i = 1 ; i <= row ; i++){
+            DrawText(TextFormat("%d",i),20, i*50 + 15, 20, BEIGE);
+        }
+
+        for (int i = 1 ; i <= col ; i++)
+        DrawText(TextFormat("%c",(char) (i + 'A' - 1)),i*50 + 25,20, 20, BEIGE);
+
+        double x = GetTime() - timebegin;
+        if (!endgame) g = (int)x;
+
+        if (g >= limmittime && !endgame) Endgame();
+        DrawText(TextFormat("Countdown: %d m %d s",(limmittime - g)/60, (limmittime - g) % 60), col*50 + 60, 80, 20, BEIGE);
+        DrawText(TextFormat("Remaining bombs: %d",remainbomb),col*50 + 60, 50 + 80, 20, BEIGE);
+        DrawText(TextFormat("Number heart:"),col*50 + 60, 100 + 80, 20, BEIGE);
+        int l =  col*50 + 210;
+        for (int i  = 1 ; i < health ; i++){
+            DrawTexture(texture3, l,95 + 80,RAYWHITE);
+            l += 30;
+        }
+
+        DrawText(TextFormat("Press left mouse to break square"),col*50 + 60, 80 + 150, 20, BEIGE);
+        DrawText(TextFormat("Press right mouse to flag"), col*50 + 60, 80 + 50*4, 20, BEIGE);
+        DrawText(TextFormat("Press key G to guess bomb"),col*50 + 60, 80 + 50*5, 20, BEIGE);
+        DrawText(TextFormat("Press key R to replay if you lose"),col*50 + 60, 80 + 50*6, 20, BEIGE);
+        DrawText(TextFormat("Press key E to exit if you lose"),col*50 + 60, 80 + 50*7, 20, BEIGE);
+}
+
+void Endgame(){
+
+    endgame = 1;
+    for (int i = 1 ; i <= col ; i++)
+        for (int j = 1 ; j <= row ; j++)
+            tick[i][j] = 0;
+
+    while (!WindowShouldClose()){
+        BeginDrawing();
+        timebegin = GetTime();
+        paint();
+
+        for (int i = 1 ; i <= col ; i++)
+            for (int j = 1 ; j <= row ; j++)
+            if (localbomb[i][j]){
+                DrawRectangle(i*50 + 1,j*50 + 1,48,48,rB);
+                DrawTexture(texture2, i*50,j*50,RAYWHITE);
+                DrawRectangle(i*50,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50,50,1,WHITE);
+                DrawRectangle(i*50 + 49,j*50,1,50,WHITE);
+                DrawRectangle(i*50,j*50 + 49,50,1,WHITE);
+            }
+
+        DrawRectangle(200,400,500,100,BEIGE);
+        if (win) DrawText(TextFormat("You win", GetFrameTime()*1000), 270, 400, 100,WHITE); else
+        DrawText(TextFormat("You lose", GetFrameTime()*1000), 230, 400, 100, WHITE);
+
+        if (IsKeyPressed(KEY_R)){
+            setup();
+            return;
+        }
+        else if (IsKeyPressed(KEY_E)){
+            end = 1;
+            return;
+        }
+        EndDrawing();
+    }
+
+    end = 1;
+}
+
+void start_game(){
+    setup();
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+        int d = 0;
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+            int A = GetMouseX();
+            int B = GetMouseY();
+            if (localbomb[A/50][B/50] && !guess[A/50][B/50]){
+                Endgame();
+            } else 
+            if (!epy[A/50][B/50]) bfs(A/50,B/50); 
+            else{
+
+            }  
+        }
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+            int A = GetMouseX();
+            int B = GetMouseY();
+            if (!epy[A][B])
+            tick[A/50][B/50] ^= 1;  
+        }
+
+        if (IsKeyPressed(KEY_G)){
+            int A = GetMouseX();
+            int B = GetMouseY();
+
+            if (epy[A/50][B/50]); else
+            if (!localbomb[A/50][B/50]){
+                if (!nobomb[A/50][B/50]) health--;
+                nobomb[A/50][B/50] = 1;
+                if (health <= 0) Endgame();
+            }
+            else{
+                if (!guess[A/50][B/50]) remainbomb--;
+                guess[A/50][B/50] = 1;
+            }
+        }
+
+        paint();
+
+        if (remainbomb == 0){ 
+            win = 1;
+            Endgame();
+        }
+        EndDrawing();
+
+        if (end) break;
+    }
+}
+
+void load_image(){
+    Image image = LoadImage("./assets/bom4.png");  // Load image data into CPU memory (RAM)
+    texture = LoadTextureFromImage(image);       // Image converted to texture, GPU memory (RAM -> VRAM)
+    UnloadImage(image);                                    // Unload image data from CPU memory (RAM)
+
+    image = LoadImageFromTexture(texture);                 // Load image from GPU texture (VRAM -> RAM)
+    UnloadTexture(texture);                                // Unload texture from GPU memory (VRAM)
+
+    texture = LoadTextureFromImage(image);                 // Recreate texture from retrieved image data (RAM -> VRAM)
+    UnloadImage(image);  
+
+
+    Image image2 = LoadImage("./assets/bom3.png");  // Load image data into CPU memory (RAM)
+    texture2 = LoadTextureFromImage(image2);       // Image converted to texture, GPU memory (RAM -> VRAM)
+    UnloadImage(image2);                                    // Unload image data from CPU memory (RAM)
+
+    image2 = LoadImageFromTexture(texture2);                 // Load image from GPU texture (VRAM -> RAM)
+    UnloadTexture(texture2);                                // Unload texture from GPU memory (VRAM)
+
+    texture2 = LoadTextureFromImage(image2);                 // Recreate texture from retrieved image data (RAM -> VRAM)
+    UnloadImage(image2); 
+
+    Image image3 = LoadImage("./assets/heart.png");  // Load image data into CPU memory (RAM)
+    texture3 = LoadTextureFromImage(image3);       // Image converted to texture, GPU memory (RAM -> VRAM)
+    UnloadImage(image3);                                    // Unload image data from CPU memory (RAM)
+
+    image3 = LoadImageFromTexture(texture3);                 // Load image from GPU texture (VRAM -> RAM)
+    UnloadTexture(texture3);                                // Unload texture from GPU memory (VRAM)
+
+    texture3 = LoadTextureFromImage(image3);                 // Recreate texture from retrieved image data (RAM -> VRAM)
+    UnloadImage(image3);
+}
+
+int main(void) {
+    InitWindow(1300,900 , "Template-4.0.0");
+    SetTargetFPS(60); 
+    
+    load_image();
+    start_game();
+    CloseWindow();
+    return 0;
+}
+
+#include "raylib.h"
+
+//------------------------------------------------------------------------------------
+// Program main entry point
+//------------------------------------------------------------------------------------
+int main(void)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+
+    InitWindow(screenWidth, screenHeight, "raylib [textures] examples - texture source and destination rectangles");
+
+    // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
+
+    Texture2D scarfy = LoadTexture("./assets/shipp.png");        // Texture loading
+
+    int frameWidth = scarfy.width;
+    int frameHeight = scarfy.height;
+
+    // Source rectangle (part of the texture to use for drawing)
+    Rectangle sourceRec = { 0.0f, 0.0f, (float)frameWidth, (float)frameHeight};
+
+    // Destination rectangle (screen rectangle where drawing part of texture)
+    Rectangle destRec = { screenWidth/2.0f, screenHeight/2.0f, frameWidth*2.0f, frameHeight*2.0f };
+
+    // Origin of the texture (rotation/scale point), it's relative to destination rectangle size
+    Vector2 origin = { (float)frameWidth, (float)frameHeight };
+
+    int rotation = 0;
+
+    SetTargetFPS(60);
+    int x = 1,d;
+    //--------------------------------------------------------------------------------------
+
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        // Update
+        //----------------------------------------------------------------------------------
+        d++;
+        if (d % 30 == 0) x *= -1;
+        if (d % 3 == 0)
+        rotation += 1*x;
+        //----------------------------------------------------------------------------------
+
+        // Draw
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+
+            ClearBackground(RAYWHITE);
+
+            // NOTE: Using DrawTexturePro() we can easily rotate and scale the part of the texture we draw
+            // sourceRec defines the part of the texture we use for drawing
+            // destRec defines the rectangle where our texture part will fit (scaling it to fit)
+            // origin defines the point of the texture used as reference for rotation and scaling
+            // rotation defines the texture rotation (using origin as rotation point)
+            DrawTexturePro(scarfy, sourceRec, destRec, origin, (float)rotation, WHITE);
+
+            DrawLine((int)destRec.x, 0, (int)destRec.x, screenHeight, GRAY);
+            DrawLine(0, (int)destRec.y, screenWidth, (int)destRec.y, GRAY);
+
+            DrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
+
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    UnloadTexture(scarfy);        // Texture unloading
+
+    CloseWindow();                // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
+    return 0;
+}
+
+#include "raylib.h"
+
+//------------------------------------------------------------------------------------
+// Program main entry point
+//------------------------------------------------------------------------------------
+int main(void)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+
+    InitWindow(screenWidth, screenHeight, "raylib [textures] examples - texture source and destination rectangles");
+
+    // NOTE: Textures MUST be loaded after Window initialization (OpenGL context is required)
+
+    Texture2D scarfy = LoadTexture("./assets/bomb4.png");        // Texture loading
+    scarfy.width/= 4;
+    scarfy.height /= 4;
+    int frameWidth = scarfy.width;
+    int frameHeight = scarfy.height;
+
+    // Source rectangle (part of the texture to use for drawing)
+    Rectangle sourceRec = { 0.0f, 0.0f, (float)frameWidth, (float)frameHeight };
+
+    // Destination rectangle (screen rectangle where drawing part of texture)
+    Rectangle destRec = { screenWidth/2.0f, screenHeight/2.0f, frameWidth*2.0f, frameHeight*2.0f };
+
+    // Origin of the texture (rotation/scale point), it's relative to destination rectangle size
+    Vector2 origin = { (float)frameWidth, (float)frameHeight };
+
+    int rotation = 0;
+
+    SetTargetFPS(60);
+    //--------------------------------------------------------------------------------------
+
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        // Update
+        //----------------------------------------------------------------------------------
+        rotation++;
+        //----------------------------------------------------------------------------------
+
+        // Draw
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+
+            ClearBackground(RAYWHITE);
+
+            // NOTE: Using DrawTexturePro() we can easily rotate and scale the part of the texture we draw
+            // sourceRec defines the part of the texture we use for drawing
+            // destRec defines the rectangle where our texture part will fit (scaling it to fit)
+            // origin defines the point of the texture used as reference for rotation and scaling
+            // rotation defines the texture rotation (using origin as rotation point)
+            DrawTexturePro(scarfy, sourceRec, destRec, origin, (float)rotation, WHITE);
+
+            DrawLine((int)destRec.x, 0, (int)destRec.x, screenHeight, GRAY);
+            DrawLine(0, (int)destRec.y, screenWidth, (int)destRec.y, GRAY);
+
+            DrawText("(c) Scarfy sprite by Eiden Marsal", screenWidth - 200, screenHeight - 20, 10, GRAY);
+
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    UnloadTexture(scarfy);        // Texture unloading
+
+    CloseWindow();                // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
+    return 0;
+}
